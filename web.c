@@ -1,3 +1,15 @@
+//
+// Web interface for ka9q-radio
+//
+// Uses Onion Web Framwork (https://github.com/davidmoreno/onion)
+//
+// John Melton G0ORX (N6LYT)
+//
+// Beware this is a very early test version
+//
+// Copyright 2023, John Melton, G0ORX
+//
+
 #define _GNU_SOURCE 1
 
 #include <onion/log.h>
