@@ -8,8 +8,8 @@
 
       var spectrum;
       var spanHz= 29296; // 1060800// 530400; // Hz
-      var centerHz=0; // center frequency
-      var frequencyHz=0; // tuned frequency
+      var centerHz=16200000; // center frequency
+      var frequencyHz=16200000; // tuned frequency
       var lowHz=0;
       var highHz=30000000;
 
@@ -140,7 +140,7 @@
               if(frequencyHz!=hz) {
                 frequencyHz=hz;
                 spectrum.setFrequency(frequencyHz);
-                document.getElementById("freq").value=frequencHz.toString();
+                document.getElementById("freq").value=frequencyHz.toString();
                 update=1;
               }
 
@@ -273,8 +273,18 @@
                ( navigator.msMaxTouchPoints > 0 );
       }
       init = function(){
+        frequencyHz=16200000;
+        centerHz=16200000;
+        spanHz=20480;
         spectrum = new Spectrum("waterfall",{spectrumPercent: 20});
         spectrum.setSpectrumPercent(50);
+        spectrum.setFrequency(frequencyHz);
+        spectrum.setCenterHz(centerHz);
+        spectrum.setSpanHz(spanHz*1024);
+        lowHz=centerHz-((spanHz*1024)/2);
+        spectrum.setLowHz(lowHz);
+        highHz=centerHz+((spanHz*1024)/2);
+        spectrum.setHighHz(highHz);
         //msg=document.getElementById('msg');
         //msg.focus();
         ws=new WebSocket('ws://'+window.location.host);
