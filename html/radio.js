@@ -7,11 +7,12 @@
       var band;
 
       var spectrum;
-      var spanHz= 29296; // 1060800// 530400; // Hz
+      var spanHz= 20000; // 1060800// 530400; // Hz
       var centerHz=16200000; // center frequency
       var frequencyHz=16200000; // tuned frequency
       var lowHz=0;
       var highHz=30000000;
+      var samples=1620;
 
       var filter_low = 50;
       var filter_high = 3000;
@@ -149,14 +150,14 @@
               hz = ntohl(n);;
               if(spanHz!=hz) {
                 spanHz=hz;
-                spectrum.setSpanHz(spanHz*1024);
+                spectrum.setSpanHz(spanHz*samples);
                 update=1;
               }
 
               if(update) {
-                lowHz=centerHz-((spanHz*1024)/2);
+                lowHz=centerHz-((spanHz*samples)/2);
                 spectrum.setLowHz(lowHz);
-                highHz=centerHz+((spanHz*1024)/2);
+                highHz=centerHz+((spanHz*samples)/2);
                 spectrum.setHighHz(highHz);
               }
 
@@ -215,7 +216,7 @@
                     var tmp=ntohf(arr_f[0]);
                     if(spanHz!=tmp) {
                       spanHz=tmp;
-                      spectrum.setSpanHz(spanHz*1024);
+                      spectrum.setSpanHz(spanHz*samples);
                       //spectrum.updateAxes();
                     }
                     i=i+l;
@@ -275,15 +276,15 @@
       init = function(){
         frequencyHz=16200000;
         centerHz=16200000;
-        spanHz=20480;
+        spanHz=20000;
         spectrum = new Spectrum("waterfall",{spectrumPercent: 20});
         spectrum.setSpectrumPercent(50);
         spectrum.setFrequency(frequencyHz);
         spectrum.setCenterHz(centerHz);
-        spectrum.setSpanHz(spanHz*1024);
-        lowHz=centerHz-((spanHz*1024)/2);
+        spectrum.setSpanHz(spanHz*samples);
+        lowHz=centerHz-((spanHz*samples)/2);
         spectrum.setLowHz(lowHz);
-        highHz=centerHz+((spanHz*1024)/2);
+        highHz=centerHz+((spanHz*samples)/2);
         spectrum.setHighHz(highHz);
         //msg=document.getElementById('msg');
         //msg.focus();
@@ -316,7 +317,7 @@
     var increment=1000;
 
     function onClick(e) {
-      var span=spanHz*1024;
+      var span=spanHz*samples;
       width=document.getElementById('waterfall').width;
       hzPerPixel=span/width;
       f=Math.round((centerHz-(span/2))+(hzPerPixel*e.pageX));

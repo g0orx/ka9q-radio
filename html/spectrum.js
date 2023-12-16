@@ -203,42 +203,36 @@ Spectrum.prototype.updateAxes = function() {
     this.ctx_axes.textBaseline = "bottom";
 
     var inc;
-    switch(this.spanHz/1024) {
-        case 40:
-          inc=5000;
-          break;
-        case 80:
-          inc=10000;
-          break;
-        case 160:
-          inc=10000;
-          break;
-        case 320:
+    switch(this.spanHz/1620) {
+        case 200:
           inc=50000;
           break;
-        case 640:
+        case 400:
           inc=50000;
           break;
-        case 1280:
+        case 800:
           inc=100000;
           break;
-        case 2560:
-          inc=100000;
-          break;
-        case 5120:
+        case 1000:
           inc=200000;
           break;
-        case 10240:
+        case 2000:
+          inc=500000;
+          break;
+        case 4000:
           inc=1000000;
           break;
-        case 20480:
+        case 8000:
+          inc=1000000;
+          break;
+        case 16000:
           inc=2000000;
           break;
-        case 40960:
+        case 20000:
           inc=2000000;
           break;
         default:
-          inc=1000000;
+          inc=2000000;
           break;
     }
 
@@ -270,9 +264,9 @@ Spectrum.prototype.addData = function(data) {
             this.ctx_wf.fillRect(0, 0, this.wf.width, this.wf.height);
             this.imagedata = this.ctx_wf.createImageData((data.length), 1);
         }
-for(var i=0;i<data.length;i++) {
-  data[i]=data[i]+10.0;
-}
+        for(var i=0;i<data.length;i++) {
+          data[i]=data[i]+this.spectrum_adjust;
+        }
         this.drawSpectrum(data);
         this.addWaterfallRow(data);
         this.resize();
@@ -484,6 +478,7 @@ function Spectrum(id, options) {
     this.min_db = -130;
     this.max_db = -70;
     this.spectrumHeight = 0;
+    this.spectrum_adjust = 30;
 
     // Colors
     this.colorindex = 0;
