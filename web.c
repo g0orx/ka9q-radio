@@ -355,17 +355,21 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
 int main(int argc,char **argv) {
   char *port="8081";
   const char *dirname="./html";
+  const char *mcast="web.local";
 
   App_path=argv[0];
   {
     int c;
-    while((c = getopt(argc,argv,"d:p:")) != -1){
+    while((c = getopt(argc,argv,"d:p:m:")) != -1){
       switch(c) {
         case 'd':
           dirname=optarg;
           break;
         case 'p':
           port=optarg;
+          break;
+        case 'm':
+          mcast=optarg;
           break;
         default:
           fprintf(stderr,"Unknown option %c\n",c);
@@ -382,7 +386,7 @@ int main(int argc,char **argv) {
     }
   }
 
-  init_connections("test.local");
+  init_connections(mcast);
 
   onion *o = onion_new(O_THREADED);
   onion_url *urls=onion_root_url(o);
