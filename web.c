@@ -360,7 +360,7 @@ int main(int argc,char **argv) {
   App_path=argv[0];
   {
     int c;
-    while((c = getopt(argc,argv,"d:p:m:")) != -1){
+    while((c = getopt(argc,argv,"d:p:m:h")) != -1){
       switch(c) {
         case 'd':
           dirname=optarg;
@@ -371,8 +371,11 @@ int main(int argc,char **argv) {
         case 'm':
           mcast=optarg;
           break;
+        case 'h':
         default:
-          fprintf(stderr,"Unknown option %c\n",c);
+          fprintf(stderr,"Usage: %s\n",App_path);
+          fprintf(stderr,"       %s [-d directory] [-p port] [-m mcast_address]\n",App_path);
+          exit(EX_USAGE);
           break;
       }
     }
