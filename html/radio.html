@@ -18,6 +18,12 @@
     <br>
     <table style="border: solid">
     <tr>
+    <td rowspan=1 colspan=1>
+    <button id="rangedown" onclick="spectrum.rangeDown()">Range ^</button>
+    </td>
+    <td rowspan=1 colspan=1>
+    <button id="rangeinc" onclick="spectrum.rangeIncrease()">Range +</button>
+    </td>
     <td rowspan=2 colspan=2>
 <!--
     <span id="freq" style="color:green; font-size:40px; border: solid; width: 200px">16200000</span>
@@ -68,6 +74,12 @@
     </td>
     </tr>
     <tr>
+    <td rowspan=1 colspan=1>
+    <button id="rangeup" onclick="spectrum.rangeUp()">Range v</button>
+    </td>
+    <td rowspan=1 colspan=1>
+    <button id="rangedec" onclick="spectrum.rangeDecrease()">Range -</button>
+    </td>
     <td rowspan=1 colspan=2>
     <label for="band">Band:</label> 
     <select name="band" id="band" onchange="setBand(this.value)"> 
@@ -98,10 +110,6 @@
     </ul>
 <!--
     <button id="colormap" onclick="spectrum.toggleColor()">Color Map</button>
-    <button id="rangedown" onclick="spectrum.rangeDown()">Range ^</button>
-    <button id="rangeup" onclick="spectrum.rangeUp()">Range v</button>
-    <button id="rangeinc" onclick="spectrum.rangeIncrease()">Range +</button>
-    <button id="rangedec" onclick="spectrum.rangeDecrease()">Range -</button>
 -->
 
   </body>
