@@ -420,7 +420,7 @@ static void *audio_thread(void *arg) {
 
   //fprintf(stderr,"%s\n",__FUNCTION__);
 
-  char const *mcast_address_text = "test.local";
+  char const *mcast_address_text = "web.local";
 
   int input_fd;
   {
