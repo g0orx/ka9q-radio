@@ -159,6 +159,8 @@
                 spectrum.setLowHz(lowHz);
                 highHz=centerHz+((spanHz*samples)/2);
                 spectrum.setHighHz(highHz);
+                info = document.getElementById('info');
+                info.innerHTML = "Samples="+samples.toString()+" Hz/sample="+spanHz.toString();
               }
 
 //console.log("center="+String(centerHz)+" freq="+String(frequencyHz)+" span="+String(spanHz)+" low="+String(lowHz)+" high="+String(highHz));
@@ -310,9 +312,13 @@
           document.getElementById('waterfall').addEventListener("wheel", onWheel, false);
 //        }
 
+          info = document.getElementById('info');
+          info.innerHTML = "Samples="+samples.toString()+" Hz/sample="+spanHz.toString();
+
         player.volume(1.00);
       }
-      window.addEventListener('load', init, false);
+
+    window.addEventListener('load', init, false);
 
     var increment=1000;
 
