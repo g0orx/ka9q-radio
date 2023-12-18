@@ -56,10 +56,13 @@ struct session {
   pthread_t poll_task;
   uint32_t poll_tag;
   pthread_t spectrum_task;
+  pthread_mutex_t spectrum_mutex;
   uint32_t spectrum_tag;
   uint32_t center_frequency;
   uint32_t frequency;
   uint32_t bin_width;
+  float tc;
+  int bins;
   onion_response * res;
   struct session *next;
   struct session *previous;
@@ -72,7 +75,7 @@ extern int init_control(struct session *sp);
 extern void control_set_frequency(struct session *sp,char *str);
 extern void control_set_mode(struct session *sp,char *str);
 int init_demod(struct channel *channel);
-void control_get_powers(struct session *sp,float frequency,int bins,int bin_bw);
+void control_get_powers(struct session *sp,float frequency,int bins,float bin_bw,float tc);
 int extract_powers(float *power,int npower,uint64_t *time,double *freq,double *bin_bw,int32_t const ssrc,uint8_t const * const buffer,int length);
 void control_poll(struct session *sp);
 void *spectrum_thread(void *arg);
@@ -97,7 +100,7 @@ const char *App_path;
 int64_t Timeout = BILLION;
 uint16_t rtp_seq=0;
 
-#define SPECTRUM_SAMPLES 1620
+#define MAX_BINS 1620
 
 onion_connection_status websocket_cb(void *data, onion_websocket * ws,
                                                ssize_t data_ready_len);
@@ -174,7 +177,7 @@ void websocket_closed(struct session *sp) {
 
 onion_connection_status websocket_cb(void *data, onion_websocket * ws,
                                                ssize_t data_ready_len) {
-  char tmp[SPECTRUM_SAMPLES];
+  char tmp[MAX_BINS];
   if (data_ready_len > sizeof(tmp))
     data_ready_len = sizeof(tmp) - 1;
 
@@ -233,17 +236,17 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
       case 'F':
       case 'f':
         sp->frequency=atoll(&tmp[2]);
-        int32_t min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-        int32_t max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
+        int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+        int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
         if(sp->frequency<min_f || sp->frequency>max_f) {
           sp->center_frequency=sp->frequency;
-          min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-          max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
+          min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+          max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
         }
         if(min_f<0) {
-          sp->center_frequency=(sp->bin_width*SPECTRUM_SAMPLES)/2;
+          sp->center_frequency=(sp->bin_width*sp->bins)/2;
         } else if(max_f>32200000) {
-          sp->center_frequency=32200000-(sp->bin_width*SPECTRUM_SAMPLES)/2;
+          sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
         }
         control_set_frequency(sp,&tmp[2]);
         break;
@@ -256,56 +259,104 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
       case 'z':
         token=strtok(NULL,":");
         if(strcmp(token,"+")==0) {
-          // zoom in
-          if(sp->bin_width>200) {
-            if(sp->bin_width==20000) {
+          pthread_mutex_lock(&sp->spectrum_mutex);
+          switch(sp->bin_width)  {
+            case 20000:
               sp->bin_width=16000;
-            } else if(sp->bin_width==1000) {
+              break;
+            case 16000:
+              sp->bin_width=8000;
+              break;
+            case 8000:
+              sp->bin_width=4000;
+              break;
+            case 4000:
+              sp->bin_width=2000;
+              break;
+            case 2000:
+              sp->bin_width=1000;
+              break;
+            case 1000:
               sp->bin_width=800;
-            } else {
-              sp->bin_width=sp->bin_width/2;
-            }
-//fprintf(stderr,"bin_width=%d\n",sp->bin_width);
-            // check frequency is within zoomed span
-            // if not the center on the frequency
-            int32_t min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            int32_t max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            if(sp->frequency<min_f || sp->frequency>max_f) {
-              sp->center_frequency=sp->frequency;
-              min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-              max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            }
-            if(min_f<0) {
-              sp->center_frequency=(sp->bin_width*SPECTRUM_SAMPLES)/2;
-            } else if(max_f>32200000) {
-              sp->center_frequency=32200000-(sp->bin_width*SPECTRUM_SAMPLES)/2;
-            }
+              break;
+            case 800:
+              sp->bin_width=400;
+              break;
+            case 400:
+              sp->bin_width=200;
+              break;
+            case 200:
+              sp->bin_width=80;
+              break;
+            case 80:
+              sp->bin_width=40;
+              break;
+          }
+          pthread_mutex_unlock(&sp->spectrum_mutex);
+//fprintf(stderr,"%s: bins=%d bin_width=%d\n",__FUNCTION__,sp->bins,sp->bin_width);
+          // check frequency is within zoomed span
+          // if not the center on the frequency
+          int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+          int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+          if(sp->frequency<min_f || sp->frequency>max_f) {
+            sp->center_frequency=sp->frequency;
+            min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+            max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+          }
+          if(min_f<0) {
+            sp->center_frequency=(sp->bin_width*sp->bins)/2;
+          } else if(max_f>32200000) {
+            sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
           }
         } else if(strcmp(token,"-")==0) {
-          // zoom out
-          if(sp->bin_width<20000) {
-            if(sp->bin_width==16000) {
+          pthread_mutex_lock(&sp->spectrum_mutex);
+          switch(sp->bin_width)  {
+            case 16000:
               sp->bin_width=20000;
-            } else if(sp->bin_width==800) {
+              break;
+            case 8000:
+              sp->bin_width=16000;
+              break;
+            case 4000:
+              sp->bin_width=8000;
+              break;
+            case 2000:
+              sp->bin_width=4000;
+              break;
+            case 1000:
+              sp->bin_width=2000;
+              break;
+            case 800:
               sp->bin_width=1000;
-            } else {
-              sp->bin_width=sp->bin_width*2;
-            }
-//fprintf(stderr,"bin_width=%d\n",sp->bin_width);
-            // check frequency is within zoomed span
-            // if not the center on the frequency
-            int32_t min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            int32_t max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            if(sp->frequency<min_f || sp->frequency>max_f) {
-              sp->center_frequency=sp->frequency;
-              min_f=sp->center_frequency-((sp->bin_width*SPECTRUM_SAMPLES)/2);
-              max_f=sp->center_frequency+((sp->bin_width*SPECTRUM_SAMPLES)/2);
-            }
-            if(min_f<0) {
-              sp->center_frequency=(sp->bin_width*SPECTRUM_SAMPLES)/2;
-            } else if(max_f>32200000) {
-              sp->center_frequency=32200000-(sp->bin_width*SPECTRUM_SAMPLES)/2;
-            }
+              break;
+            case 400:
+              sp->bin_width=800;
+              break;
+            case 200:
+              sp->bin_width=400;
+              break;
+            case 80:
+              sp->bin_width=200;
+              break;
+            case 40:
+              sp->bin_width=80;
+              break;
+          }
+          pthread_mutex_unlock(&sp->spectrum_mutex);
+//fprintf(stderr,"%s: bins=%d bin_width=%d\n",__FUNCTION__,sp->bins,sp->bin_width);
+          // check frequency is within zoomed span
+          // if not the center on the frequency
+          int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+          int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+          if(sp->frequency<min_f || sp->frequency>max_f) {
+            sp->center_frequency=sp->frequency;
+            min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+            max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+          }
+          if(min_f<0) {
+            sp->center_frequency=(sp->bin_width*sp->bins)/2;
+          } else if(max_f>32200000) {
+            sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
           }
         } else if(strcmp(token,"c")==0) {
           sp->center_frequency=sp->frequency;
@@ -401,11 +452,14 @@ onion_connection_status home(void *data, onion_request * req,
   sp->audio_active=false;
   sp->frequency=16200000;
   sp->center_frequency=16200000; // mid of 32.4MHz - assuming we are running at 64.8MHz sample rate
+  sp->bins=MAX_BINS;
   sp->bin_width=20000; // width of a pixel in hz
+  sp->tc=1.0;
   sp->res=NULL;
   sp->next=NULL;
   sp->previous=NULL;
   pthread_mutex_init(&sp->ws_mutex,NULL);
+  pthread_mutex_init(&sp->spectrum_mutex,NULL);
   add_session(sp);
   init_control(sp);
   //fprintf(stderr,"%s: onion_websocket_set_callback: websocket_cb\n",__FUNCTION__);
@@ -424,7 +478,7 @@ static void *audio_thread(void *arg) {
 
   int input_fd;
   {
-    char iface[SPECTRUM_SAMPLES];
+    char iface[1024];
     struct sockaddr sock;
     resolve_mcast(mcast_address_text,&sock,DEFAULT_RTP_PORT,iface,sizeof(iface));
     input_fd = listen_mcast(&sock,iface);
@@ -481,7 +535,7 @@ static void *audio_thread(void *arg) {
 }
 
 int init_connections(char *multicast_group) {
-  char iface[SPECTRUM_SAMPLES]; // Multicast interface
+  char iface[1024]; // Multicast interface
 
   pthread_mutex_init(&ctl_mutex,NULL);
 
@@ -591,7 +645,7 @@ void control_set_mode(struct session *sp,char *str) {
   }
 }
 
-void control_get_powers(struct session *sp,float frequency,int bins,int bin_bw) {
+void control_get_powers(struct session *sp,float frequency,int bins,float bin_bw,float tc) {
   uint8_t cmdbuffer[PKTSIZE];
   uint8_t *bp = cmdbuffer;
   *bp++ = CMD; // Command
@@ -602,6 +656,7 @@ void control_get_powers(struct session *sp,float frequency,int bins,int bin_bw) 
   encode_float(&bp,RADIO_FREQUENCY,frequency);
   encode_int(&bp,BIN_COUNT,bins);
   encode_float(&bp,NONCOHERENT_BIN_BW,bin_bw);
+  encode_float(&bp,INTEGRATE_TC,tc);
   encode_eol(&bp);
 
   sp->spectrum_tag=tag;
@@ -736,7 +791,9 @@ void *spectrum_thread(void *arg) {
   struct session *sp = (struct session *)arg;
   //fprintf(stderr,"%s: %d\n",__FUNCTION__,sp->ssrc);
   while(sp->spectrum_active) {
-    control_get_powers(sp,(float)sp->center_frequency,SPECTRUM_SAMPLES,sp->bin_width);
+    pthread_mutex_lock(&sp->spectrum_mutex);
+    control_get_powers(sp,(float)sp->center_frequency,sp->bins,(float)sp->bin_width,sp->tc);
+    pthread_mutex_unlock(&sp->spectrum_mutex);
     if(usleep(100000) !=0) {
       perror("spectrum_thread: usleep(100000)");
     }

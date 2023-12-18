@@ -203,7 +203,13 @@ Spectrum.prototype.updateAxes = function() {
     this.ctx_axes.textBaseline = "bottom";
 
     var inc;
-    switch(this.spanHz/1620) {
+    switch(this.spanHz/this.nbins) {
+        case 40:
+          inc=5000;
+          break;
+        case 80:
+          inc=10000;
+          break;
         case 200:
           inc=50000;
           break;
@@ -264,6 +270,7 @@ Spectrum.prototype.addData = function(data) {
             this.ctx_wf.fillRect(0, 0, this.wf.width, this.wf.height);
             this.imagedata = this.ctx_wf.createImageData((data.length), 1);
         }
+        this.nbins=data.length;
         for(var i=0;i<data.length;i++) {
           data[i]=data[i]+this.spectrum_adjust;
         }
