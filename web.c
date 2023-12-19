@@ -63,7 +63,7 @@ struct session {
   uint32_t bin_width;
   float tc;
   int bins;
-  onion_response * res;
+  char description[16];
   struct session *next;
   struct session *previous;
 };
@@ -458,6 +458,7 @@ onion_connection_status status(void *data, onion_request * req,
     if(nsessions!=0) {
       onion_response_write0(res, "<table border=1>"
          "<tr>"
+         "<th>client</th>"
          "<th>ssrc</th>"
          "<th>frequency range(Hz)</th>"
          "<th>frequency(Hz)</th>"
@@ -471,7 +472,7 @@ onion_connection_status status(void *data, onion_request * req,
       while(sp!=NULL) {
         int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
         int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
-        sprintf(text,"<tr><td>%d</td><td>%d to %d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>",sp->ssrc,min_f,max_f,sp->frequency,sp->center_frequency,sp->bins,sp->bin_width,sp->audio_active?"Enabled":"Disabled");
+        sprintf(text,"<tr><td>%s</td><td>%d</td><td>%d to %d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>",sp->description,sp->ssrc,min_f,max_f,sp->frequency,sp->center_frequency,sp->bins,sp->bin_width,sp->audio_active?"Enabled":"Disabled");
         onion_response_write0(res, text);
         sp=sp->next;
       }
@@ -503,9 +504,7 @@ onion_connection_status home(void *data, onion_request * req,
     return OCS_PROCESSED;
   }
 
-  // setup a control
-  //fprintf(stderr,"%s: init_control ws=%p\n",__FUNCTION__,ws);
-
+  // create session
   int i;
   struct session *sp=calloc(1,sizeof(*sp));
   if(nsessions==0) {
@@ -519,8 +518,6 @@ onion_connection_status home(void *data, onion_request * req,
     }
     sp->ssrc=START_SESSION_ID+(i*2);
   }
-//  sp->ssrc=session_id;
-//  session_id=session_id+2;
   sp->ws=ws;
   sp->spectrum_active=true;
   sp->audio_active=false;
@@ -529,9 +526,9 @@ onion_connection_status home(void *data, onion_request * req,
   sp->bins=MAX_BINS;
   sp->bin_width=20000; // width of a pixel in hz
   sp->tc=1.0;
-  sp->res=NULL;
   sp->next=NULL;
   sp->previous=NULL;
+  strcpy(sp->description,onion_request_get_client_description(req));
   pthread_mutex_init(&sp->ws_mutex,NULL);
   pthread_mutex_init(&sp->spectrum_mutex,NULL);
   add_session(sp);
