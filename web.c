@@ -68,7 +68,7 @@ struct session {
   struct session *previous;
 };
   
-static uint32_t session_id=1000;
+#define START_SESSION_ID 1000
 
 int init_connections(char *multicast_group);
 extern int init_control(struct session *sp);
@@ -112,11 +112,15 @@ onion_connection_status stream_audio(void *data, onion_request * req,
 static void *audio_thread(void *arg);
 onion_connection_status home(void *data, onion_request * req,
                                           onion_response * res);
+onion_connection_status status(void *data, onion_request * req,
+                                          onion_response * res);
 
+pthread_mutex_t session_mutex;
 static int nsessions=0;
 static struct session *sessions=NULL;
 
 void add_session(struct session *sp) {
+  pthread_mutex_lock(&session_mutex);
   if(sessions==NULL) {
     sessions=sp;
   } else {
@@ -125,23 +129,31 @@ void add_session(struct session *sp) {
     sessions=sp;
   }
   nsessions++;
-fprintf(stderr,"%s: ssrc=%d first=%p ws=%p nsessions=%d\n",__FUNCTION__,sp->ssrc,sessions,sp->ws,nsessions);
+  pthread_mutex_unlock(&session_mutex);
+//fprintf(stderr,"%s: ssrc=%d first=%p ws=%p nsessions=%d\n",__FUNCTION__,sp->ssrc,sessions,sp->ws,nsessions);
 }
 
 void delete_session(struct session *sp) {
-fprintf(stderr,"%s: ssrc=%d ws=%p\n",__FUNCTION__,sp->ssrc,sp->ws);
+  pthread_mutex_lock(&session_mutex);
+//fprintf(stderr,"%s: sp=%p src=%d ws=%p\n",__FUNCTION__,sp,sp->ssrc,sp->ws);
   if(sp->next!=NULL) {
     sp->next->previous=sp->previous;
   }
-  if(sp->previous==NULL) {
+  if(sp->previous!=NULL) {
+    sp->previous->next=sp->next;
+  }
+  if(sessions==sp) {
     sessions=sp->next;
   }
   nsessions--;
-fprintf(stderr,"%s: ssrc=%d first=%p ws=%p nsessions=%d\n",__FUNCTION__,sp->ssrc,sessions,sp->ws,nsessions);
+//fprintf(stderr,"%s: sp=%p ssrc=%d first=%p ws=%p nsessions=%d\n",__FUNCTION__,sp,sp->ssrc,sessions,sp->ws,nsessions);
   free(sp);
+  pthread_mutex_unlock(&session_mutex);
 }
 
 struct session *find_session_from_websocket(onion_websocket *ws) {
+  pthread_mutex_lock(&session_mutex);
+//fprintf(stderr,"%s: first=%p ws=%p\n",__FUNCTION__,sessions,ws);
   struct session *sp=sessions;
   while(sp!=NULL) {
     if(sp->ws==ws) {
@@ -149,10 +161,14 @@ struct session *find_session_from_websocket(onion_websocket *ws) {
     }
     sp=sp->next;
   }
+//fprintf(stderr,"%s: ws=%p sp=%p\n",__FUNCTION__,ws,sp);
+  pthread_mutex_unlock(&session_mutex);
   return sp;
 }
 
 struct session *find_session_from_ssrc(int ssrc) {
+  pthread_mutex_lock(&session_mutex);
+//fprintf(stderr,"%s: first=%p ssrc=%d\n",__FUNCTION__,sessions,ssrc);
   struct session *sp=sessions;
   while(sp!=NULL) {
     if(sp->ssrc==ssrc) {
@@ -160,19 +176,21 @@ struct session *find_session_from_ssrc(int ssrc) {
     }
     sp=sp->next;
   }
+//fprintf(stderr,"%s: ssrc=%d sp=%p\n",__FUNCTION__,ssrc,sp);
+  pthread_mutex_unlock(&session_mutex);
   return sp;
 }
 
 void websocket_closed(struct session *sp) {
 //fprintf(stderr,"%s: audio_active=%d spectrum_active=%d\n",__FUNCTION__,sp->audio_active,sp->spectrum_active);
-    //if(sp->audio_active) {
-    //  sp->audio_active=false;
-    //  pthread_join(sp->audio_task,NULL);
-    //}
+    pthread_mutex_lock(&sp->ws_mutex);
+    control_set_frequency(sp,"0");
+    sp->audio_active=false;
     if(sp->spectrum_active) {
       sp->spectrum_active=false;
       pthread_join(sp->spectrum_task,NULL);
     }
+    pthread_mutex_unlock(&sp->ws_mutex);
 }
 
 onion_connection_status websocket_cb(void *data, onion_websocket * ws,
@@ -195,7 +213,6 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
     ONION_ERROR("Error reading data: %d: %s (%d) ws=%p", errno, strerror(errno),
                 data_ready_len,ws);
     websocket_closed(sp);
-    control_set_frequency(sp,"0");
     delete_session(sp);
     return OCS_CLOSE_CONNECTION;
   }
@@ -405,6 +422,7 @@ int main(int argc,char **argv) {
     }
   }
 
+  pthread_mutex_init(&session_mutex,NULL);
   init_connections(mcast);
 
   onion *o = onion_new(O_THREADED);
@@ -413,13 +431,57 @@ int main(int argc,char **argv) {
   onion_set_hostname(o, "0.0.0.0");
   onion_handler *pages = onion_handler_export_local_new(dirname);
   onion_handler_add(onion_url_to_handler(urls), pages);
-  //onion_url_add(urls, "stream", stream_audio);
+  onion_url_add(urls, "status", status);
   onion_url_add(urls, "^$", home);
 
   onion_listen(o);
 
   onion_free(o);
   return 0;
+}
+
+onion_connection_status status(void *data, onion_request * req,
+                                          onion_response * res) {
+    char text[1024];
+    onion_response_write0(res,
+      "<!DOCTYPE html>"
+      "<html>"
+        "<head>"
+        "  <title>G0ORX Web SDR - Status</title>"
+        "  <meta charset=\"UTF-8\" />"
+        "</head>"
+        "<body>"
+        "  <h1>G0ORX Web SDR - Status</h1>");
+    sprintf(text,"<b>Sessions: %d</b>",nsessions);
+    onion_response_write0(res, text);
+
+    if(nsessions!=0) {
+      onion_response_write0(res, "<table border=1>"
+         "<tr>"
+         "<th>ssrc</th>"
+         "<th>frequency range(Hz)</th>"
+         "<th>frequency(Hz)</th>"
+         "<th>center frequency(Hz)</th>"
+         "<th>bins</th>"
+         "<th>bin width(Hz)</th>"
+         "<th>Audio</th>"
+         "</tr>");
+     
+      struct session *sp = sessions;
+      while(sp!=NULL) {
+        int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+        int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+        sprintf(text,"<tr><td>%d</td><td>%d to %d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>",sp->ssrc,min_f,max_f,sp->frequency,sp->center_frequency,sp->bins,sp->bin_width,sp->audio_active?"Enabled":"Disabled");
+        onion_response_write0(res, text);
+        sp=sp->next;
+      }
+      onion_response_write0(res, "</table>");
+    }
+
+    onion_response_write0(res,
+        "</body>"
+        "</html>");
+    return OCS_PROCESSED;
 }
 
 onion_connection_status home(void *data, onion_request * req,
@@ -431,7 +493,7 @@ onion_connection_status home(void *data, onion_request * req,
       "<!DOCTYPE html>"
       "<html>"
         "<head>"
-        "  <title>Old Page</title>"
+        "  <title>G0ORX Web SDR</title>"
         "  <meta charset=\"UTF-8\" />"
         "  <meta http-equiv=\"refresh\" content=\"0; URL=radio.html\" />"
         "</head>"
@@ -444,9 +506,21 @@ onion_connection_status home(void *data, onion_request * req,
   // setup a control
   //fprintf(stderr,"%s: init_control ws=%p\n",__FUNCTION__,ws);
 
+  int i;
   struct session *sp=calloc(1,sizeof(*sp));
-  sp->ssrc=session_id;
-  session_id=session_id+2;
+  if(nsessions==0) {
+    sp->ssrc=START_SESSION_ID;
+  } else {
+    for(i=0;i<nsessions;i++) {
+      struct session *s=find_session_from_ssrc(START_SESSION_ID+(i*2));
+      if(s==NULL) {
+        break;
+      }
+    }
+    sp->ssrc=START_SESSION_ID+(i*2);
+  }
+//  sp->ssrc=session_id;
+//  session_id=session_id+2;
   sp->ws=ws;
   sp->spectrum_active=true;
   sp->audio_active=false;
@@ -515,7 +589,9 @@ static void *audio_thread(void *arg) {
     if(pkt->len <= 0)
       continue; // Used to be an assert, but would be triggered by bogus packets
 
+
     sp=find_session_from_ssrc(pkt->rtp.ssrc);
+//fprintf(stderr,"%s: sp=%p ssrc=%d\n",__FUNCTION__,sp,pkt->rtp.ssrc);
     if(sp!=NULL) {
       if(sp->audio_active) {
         //fprintf(stderr,"forward RTP: ws=%p ssrc=%d\n",sp->ws,pkt->rtp.ssrc);
@@ -608,12 +684,12 @@ int init_control(struct session *sp) {
 void control_set_frequency(struct session *sp,char *str) {
   uint8_t cmdbuffer[PKTSIZE];
   uint8_t *bp = cmdbuffer;
-  struct channel *const channel = &Channel;
+  double f;
 
   if(strlen(str) > 0){
     *bp++ = CMD; // Command
-    channel->tune.freq = fabs(parse_frequency(str,true)); // Handles funky forms like 147m435
-    encode_double(&bp,RADIO_FREQUENCY,channel->tune.freq);
+    f = fabs(parse_frequency(str,true)); // Handles funky forms like 147m435
+    encode_double(&bp,RADIO_FREQUENCY,f);
     encode_int(&bp,OUTPUT_SSRC,sp->ssrc); // Specific SSRC
     encode_int(&bp,COMMAND_TAG,arc4random()); // Append a command tag
     encode_eol(&bp);
