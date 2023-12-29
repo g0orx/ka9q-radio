@@ -485,7 +485,7 @@ function Spectrum(id, options) {
     this.min_db = -130;
     this.max_db = -70;
     this.spectrumHeight = 0;
-    this.spectrum_adjust = 30;
+    this.spectrum_adjust = 0;
 
     // Colors
     this.colorindex = 0;

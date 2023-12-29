@@ -83,8 +83,8 @@
     </td>
     <td rowspan=1 colspan=2>
     <label for="band">Band:</label> 
-    <select name="band" id="band" onchange="setBand(this.value)"> 
-        <option valeu="" disabled selected hidden>Select Band</option>
+    <select name="band" id="band" onchange="setBand(this.value); if(value==28500000) zoomTo(400); else zoomTo(200); if(value<10000000) selectMode('lsb'); else selectMode('usb')"> 
+        <option value="" disabled selected hidden>Select Band</option>
         <option value="1900000">160M</option> 
         <option value="3600000">80M</option> 
         <option value="5406500">60M</option> 

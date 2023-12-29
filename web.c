@@ -1,7 +1,7 @@
 //
 // Web interface for ka9q-radio
 //
-// Uses Onion Web Framwork (https://github.com/davidmoreno/onion)
+// Uses Onion Web Framework (https://github.com/davidmoreno/onion)
 //
 // John Melton G0ORX (N6LYT)
 //
@@ -193,6 +193,23 @@ void websocket_closed(struct session *sp) {
     pthread_mutex_unlock(&sp->ws_mutex);
 }
 
+static void check_frequency(struct session *sp) {
+  // check frequency is within zoomed span
+  // if not the center on the frequency
+  int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+  int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+  if(sp->frequency<min_f || sp->frequency>max_f) {
+    sp->center_frequency=sp->frequency;
+    min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
+    max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
+  }
+  if(min_f<0) {
+    sp->center_frequency=(sp->bin_width*sp->bins)/2;
+  } else if(max_f>32200000) {
+    sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
+  }
+}
+
 onion_connection_status websocket_cb(void *data, onion_websocket * ws,
                                                ssize_t data_ready_len) {
   char tmp[MAX_BINS];
@@ -311,20 +328,7 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
           }
           pthread_mutex_unlock(&sp->spectrum_mutex);
 //fprintf(stderr,"%s: bins=%d bin_width=%d\n",__FUNCTION__,sp->bins,sp->bin_width);
-          // check frequency is within zoomed span
-          // if not the center on the frequency
-          int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
-          int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
-          if(sp->frequency<min_f || sp->frequency>max_f) {
-            sp->center_frequency=sp->frequency;
-            min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
-            max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
-          }
-          if(min_f<0) {
-            sp->center_frequency=(sp->bin_width*sp->bins)/2;
-          } else if(max_f>32200000) {
-            sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
-          }
+          check_frequency(sp);
         } else if(strcmp(token,"-")==0) {
           pthread_mutex_lock(&sp->spectrum_mutex);
           switch(sp->bin_width)  {
@@ -361,22 +365,17 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
           }
           pthread_mutex_unlock(&sp->spectrum_mutex);
 //fprintf(stderr,"%s: bins=%d bin_width=%d\n",__FUNCTION__,sp->bins,sp->bin_width);
-          // check frequency is within zoomed span
-          // if not the center on the frequency
-          int32_t min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
-          int32_t max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
-          if(sp->frequency<min_f || sp->frequency>max_f) {
-            sp->center_frequency=sp->frequency;
-            min_f=sp->center_frequency-((sp->bin_width*sp->bins)/2);
-            max_f=sp->center_frequency+((sp->bin_width*sp->bins)/2);
-          }
-          if(min_f<0) {
-            sp->center_frequency=(sp->bin_width*sp->bins)/2;
-          } else if(max_f>32200000) {
-            sp->center_frequency=32200000-(sp->bin_width*sp->bins)/2;
-          }
+          check_frequency(sp);
         } else if(strcmp(token,"c")==0) {
           sp->center_frequency=sp->frequency;
+        } else {
+          int width=atoi(&tmp[2]);
+          if(width!=0) {
+            pthread_mutex_lock(&sp->spectrum_mutex);
+            sp->bin_width=width;
+            pthread_mutex_unlock(&sp->spectrum_mutex);
+            check_frequency(sp);
+          }
         }
         break;
     }
@@ -449,6 +448,7 @@ onion_connection_status status(void *data, onion_request * req,
         "<head>"
         "  <title>G0ORX Web SDR - Status</title>"
         "  <meta charset=\"UTF-8\" />"
+        "  <meta http-equiv=\"refresh\" content=\"30\" />"
         "</head>"
         "<body>"
         "  <h1>G0ORX Web SDR - Status</h1>");
@@ -916,7 +916,7 @@ void *ctrl_thread(void *arg) {
       }
       if(sp!=NULL) {
 //fprintf(stderr,"%s: ws=%p ssrc=%d tag=%d poll_tag=%d spectrum_tag=%d\n",__FUNCTION__,sp->ws,ssrc,tag,sp->poll_tag,sp->spectrum_tag);
-          if(tag==sp->poll_tag) {
+          if(tag==sp->poll_tag) { // channel status
             decode_radio_status(&Channel,buffer+1,length-1);
             struct rtp_header rtp;
             memset(&rtp,0,sizeof(rtp));
@@ -928,7 +928,7 @@ void *ctrl_thread(void *arg) {
             uint8_t *bp=(uint8_t *)hton_rtp((char *)output_buffer,&rtp);
             int header_size=bp-&output_buffer[0];
             int length=(PKTSIZE-header_size)/sizeof(float);
-            //encode_float(&bp,BASEBAND_POWER,Channel.sig.bb_power);
+            encode_float(&bp,BASEBAND_POWER,Channel.sig.bb_power);
             encode_float(&bp,LOW_EDGE,Channel.filter.min_IF);
             encode_float(&bp,HIGH_EDGE,Channel.filter.max_IF);
             pthread_mutex_lock(&sp->ws_mutex);

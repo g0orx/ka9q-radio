@@ -7,11 +7,11 @@
       var band;
 
       var spectrum;
-      var spanHz= 20000; // 1060800// 530400; // Hz
+      var spanHz= 20000; // 20000 Hz per bin
       var centerHz=16200000; // center frequency
       var frequencyHz=16200000; // tuned frequency
       var lowHz=0;
-      var highHz=30000000;
+      var highHz=32400000;
       var samples=1620;
 
       var filter_low = 50;
@@ -125,7 +125,7 @@
           var data_length=data.byteLength-i;
           var update=0;
           switch(type) {
-            case 0x7F:
+            case 0x7F: // SPECTRUM DATA
               n = view.getUint32(i);
               i=i+4;
               var hz = ntohl(n);
@@ -168,7 +168,7 @@
               const arr = new Float32Array(dataBuffer);
               spectrum.addData(arr);
               break;
-            case 0x7E:
+            case 0x7E: // Channel Data
               while(i<data.byteLength) {
                 var v=view.getInt8(i++);
                 var l=view.getInt8(i++);
@@ -192,62 +192,6 @@
                 }
               }
               spectrum.setFilter(filter_low,filter_high);
-              break;
-            case 0x7D:
-              while(i<data.byteLength) {
-                var v=view.getInt8(i++);
-                var l=view.getInt8(i++);
-                switch(v) {
-                  case 33: // RADIO_FREQUENCY
-                    dataBuffer = evt.data.slice(i,i+l);
-                    arr_f = new Float32Array(dataBuffer);
-                    frequencyHz=ntohf(arr_f[0]);
-                    spectrum.setFrequency(frequencyHz);
-                    i=i+l;
-                    break;
-                  case 34: // FIRST_LO_FREQUENCY (used for CENTER_FREQ)
-                    dataBuffer = evt.data.slice(i,i+l);
-                    arr_f = new Float32Array(dataBuffer);
-                    spectrum.setCenterHz(ntohf(arr_f[0]));
-                    centerHz=ntohf(arr_f[0]);
-                    i=i+l;
-                    break;
-                  case 35: // SECOND_LO_FREQUENCY (used for spanHz)
-                    dataBuffer = evt.data.slice(i,i+l);
-                    arr_f = new Float32Array(dataBuffer);
-                    var tmp=ntohf(arr_f[0]);
-                    if(spanHz!=tmp) {
-                      spanHz=tmp;
-                      spectrum.setSpanHz(spanHz*samples);
-                      //spectrum.updateAxes();
-                    }
-                    i=i+l;
-                    break;
-                  case 39: // LOW_EDGE
-                    dataBuffer = evt.data.slice(i,i+l);
-                    arr_low = new Float32Array(dataBuffer);
-                    lowHz=ntohf(arr_low[0]);
-                    spectrum.setLowHz(lowHz);
-                    i=i+l;
-                    break;
-                  case 40: // HIGH_EDGE
-                    dataBuffer = evt.data.slice(i,i+l);
-                    arr_high = new Float32Array(dataBuffer);
-                    highHz=ntohf(arr_high[0]);
-                    spectrum.setHighHz(highHz);
-                    i=i+l;
-                    break;
-                  case 48: // DEMOD_TYPE
-                    dataBuffer = evt.data.slice(i,i+l);
-                    modeArray=new Uint8Array(dataBuffer);
-                    decoder=new TextDecoder("utf-8");
-                    let element = document.getElementById('mode');
-                    element.value = decoder.decode(modeArray);
-                    i=i+l;
-                    break;
-                }
-              }
-              //spectrum.updateAxes();
               break;
             case 0x7A: // 122 - 16bit PCM Audio at 12000 Hz
               // Audio data 1 channel 12000
@@ -450,6 +394,9 @@
     }
     function zoomcenter() {
       ws.send("Z:c");
+    }
+    function zoomTo(w) {
+      ws.send("Z:"+w.toString());
     }
     function audioReporter(stats) {
     }
