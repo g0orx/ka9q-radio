@@ -83,7 +83,7 @@
     </td>
     <td rowspan=1 colspan=2>
     <label for="band">Band:</label> 
-    <select name="band" id="band" onchange="setBand(this.value); if(value==28500000) zoomTo(400); else zoomTo(200); if(value<10000000) selectMode('lsb'); else selectMode('usb')"> 
+    <select name="band" id="band" onchange="setBand(this.value); if(value>28000000) zoomTo(2000); else zoomTo(200); if(value<10000000) selectMode('lsb'); else selectMode('usb'); this.min_db = -130"> 
         <option value="" disabled selected hidden>Select Band</option>
         <option value="1900000">160M</option> 
         <option value="3600000">80M</option> 
@@ -94,7 +94,7 @@
         <option value="18111000">17M</option> 
         <option value="21300000">15M</option> 
         <option value="24931000">12M</option> 
-        <option value="28500000">10M</option> 
+        <option value="29000000">10M</option> 
     </select>
     </td>
     <td rowspan=1 colspan=2 align='center'>
@@ -113,7 +113,13 @@
 <!--
     <button id="colormap" onclick="spectrum.toggleColor()">Color Map</button>
 -->
-
+    <i>Web Server by John Melton, G0ORX (https://github.com/g0orx/ka9q-radio)</i>
+    <br>
+    <i>ka9q-radio by Phil Karn, KA9Q (https://github.com/ka9q/ka9q-radio)</i>
+    <br>
+    <i>Onion Web Framework by David Moreno (https://github.com/davidmoreno/onion)</i>
+    <br>
+    <i>Spectrum/Waterfall Display by Jeppe Ledet-Pedersen (https://github.com/jledet/waterfall)</i>
   </body>
 </html>
 

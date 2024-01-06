@@ -78,6 +78,7 @@ Spectrum.prototype.drawFFT = function(bins) {
 */
     this.ctx.beginPath();
     this.ctx.moveTo(-1, this.spectrumHeight + 1);
+    var max_s=0;
     for(var i=0; i<bins.length; i++) {
         var s = bins[i];
         s = (s+this.min_db)*dbm_per_line;
@@ -85,6 +86,9 @@ Spectrum.prototype.drawFFT = function(bins) {
         if(i==0) this.ctx.lineTo(-1,s);
         this.ctx.lineTo(i, s);
         if (i==bins.length-1) this.ctx.lineTo(this.wf_size+1,s);
+        if(s>max_s) {
+          max_s=s;
+        }
     }
     this.ctx.lineTo(this.wf_size+1,this.spectrumHeight+1);
     this.ctx.strokeStyle = "#fefefe";
@@ -105,8 +109,12 @@ Spectrum.prototype.drawFFT = function(bins) {
     this.ctx.lineTo(x,this.spectrumHeight);
     this.ctx.strokeStyle = "#ff0000";
     this.ctx.stroke();
-//console.log("hz_per_pixel="+String(hz_per_pixel)+" start="+String(this.start_freq)+" freq="+String(this.frequency)+" x="+String(x));
 
+    if(max_s>this.spectrumHeight) {
+      this.min_db=this.min_db+5;
+      this.max_db=this.max_db+5;
+      this.rangeDown();
+    }
 }
 
 Spectrum.prototype.drawSpectrum = function(bins) {
@@ -200,7 +208,8 @@ Spectrum.prototype.updateAxes = function() {
         this.ctx_axes.stroke();
     }
 
-    this.ctx_axes.textBaseline = "bottom";
+    //this.ctx_axes.textBaseline = "bottom";
+    this.ctx_axes.textBaseline = "top";
 
     var inc;
     switch(this.spanHz/this.nbins) {
@@ -250,7 +259,8 @@ Spectrum.prototype.updateAxes = function() {
         this.ctx_axes.textAlign = "center";
         var x = (freq-this.start_freq)/hz_per_pixel;
         text = freq / 1e6;
-        this.ctx_axes.fillText(text.toFixed(3), x, height);
+        //this.ctx_axes.fillText(text.toFixed(3), x, height);
+        this.ctx_axes.fillText(text.toFixed(3), x, 2);
         this.ctx_axes.beginPath();
         this.ctx_axes.moveTo(x, 0);
         this.ctx_axes.lineTo(x, height);
